@@ -1,0 +1,94 @@
+name: Build
+
+on:
+    workflow_dispatch:
+    push:
+        branches:
+            - main
+
+jobs:
+    build-apk:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Set up Flutter SDK
+              uses: subosito/flutter-action@v2.16.0
+              with:
+                  channel: stable
+                  cache: false
+
+            - name: Set up rust
+              uses: actions-rs/toolchain@v1
+              with:
+                  toolchain: stable
+
+            - name: Set up java 17
+              uses: actions/setup-java@v4
+              with:
+                  distribution: "zulu" # See 'Supported distributions' for available options
+                  java-version: "17"
+
+            - name: Build Prepare
+              run: |
+                  flutter pub get
+                  chmod +x ./rust_builder
+                  flutter doctor -v
+
+            - name: Build APK
+              run: |
+                  flutter build apk
+                  ls -alh ./build/app/outputs/flutter-apk/*.apk
+                  cp -r ./build/app/outputs/flutter-apk /tmp/flutter-apk
+
+            # - name: Build Linux
+            #   run: |
+            #     flutter build linux --release
+            #     ls -alh ./build/linux/x64/release/bundle/*
+            #     cp -r ./build/linux/x64/release/bundle /tmp/linux-bundle
+
+            - name: Upload Android
+              uses: actions/upload-artifact@v4.3.3
+              with:
+                  name: android-release
+                  path: /tmp/flutter-apk/*.apk
+
+    build-windows:
+        runs-on: windows-latest
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Set up Flutter SDK
+              uses: subosito/flutter-action@v2.16.0
+              with:
+                  channel: stable
+                  cache: true
+
+            - name: Set up rust
+              uses: actions-rs/toolchain@v1
+              with:
+                  toolchain: stable
+
+            - name: Build Prepare
+              run: |
+                  flutter pub get
+                  flutter config --enable-native-assets
+
+            - name: Build Windows
+              run: |
+                  flutter build windows --release
+
+            - name: Build iss script
+              run: |
+                  dart setup.dart
+                  ls build\windows
+
+            - name: Upload Windows
+              uses: actions/upload-artifact@v4.3.3
+              with:
+                  name: windows-release
+                  path: build\windows\asimov-setup.exe
